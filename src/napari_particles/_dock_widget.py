@@ -790,8 +790,6 @@ def load_SMLM(self, file_path):
              prop['intensity_photon_']), dtype=LOCS_DTYPE_2D)
         zdim = False
     self.list_of_datasets.append(dataset(locs=locs, zdim=zdim, parent=self, pixelsize=pixelsize, name=filename))
-    plt.scatter(locs.x, locs.y)  # until gpu and ram are updated... to show that it works in principle
-    plt.show()
-    # create_new_layer(self=self, aas=0.1, pixelsize=pixelsize, particle_size=130, layer_name=filename, idx=-1)
+    create_new_layer(self=self, aas=0.1, pixelsize=pixelsize, particle_size=130, layer_name=filename, idx=-1)
 
 ##### Lowest Order functions
