@@ -385,6 +385,8 @@ class SMLMQW(QWidget):
         self.Lrangez.hide()
         self.Lresetview.hide()
         self.Baxis.hide()
+        self.L3d.hide()
+        self.C3d.hide()
 
     def scalebar(self):
         v = napari.current_viewer()
@@ -490,10 +492,10 @@ def open_STORM_data(self, file_path=None):
 def create_new_layer(self, aas=0.1, pixelsize=130, particle_size=130, layer_name="SMLM Data", idx=-1):
     coords = get_coords_from_locs(self, pixelsize, idx)
     values = np.ones_like(coords[:, 0])
-    size = values * particle_size
     values = values * 100
     v = napari.current_viewer()  # Just to get the sigmas
-    self.list_of_datasets[idx].layer = Particles(coords, size=size,
+    size=self.list_of_datasets[idx].sigma/pixelsize
+    self.list_of_datasets[idx].layer = Particles(coords, size=size[:,2],
                                                  values=values,
                                                  antialias=aas,
                                                  colormap='Spectral',
