@@ -198,7 +198,7 @@ class TestListView(QListWidget):
             event.ignore()
 
     def remove_dataset(self, item):
-        print("yes", item)
+        print("Dataset removal not implemented yet...", item)
 
 
 class dataset():
@@ -521,7 +521,6 @@ def create_new_layer(self, aas=0.1, pixelsize=130, layer_name="SMLM Data", idx=-
     values = np.ones_like(coords[:, 0])
     values = values * 100
     v = napari.current_viewer()  # Just to get the sigmas
-    print(v.window.qt_viewer.view.camera.get_state())
     size=self.Sperformance.value()
     self.list_of_datasets[idx].layer = Particles(coords, size=size,
                                                  values=values,
@@ -604,18 +603,18 @@ def show_infos(self, filename, idx):
     if self.list_of_datasets[idx].zdim:
         self.Lnumberoflocs.addItem(
             "Statistics\n" + f"File: {filename}\n" + f"Number of locs: {len(self.list_of_datasets[idx].locs.x)}\n"
-                                                     f"Imagewidth: {np.round((max(self.list_of_datasets[idx].locs.x) - min(self.list_of_datasets[idx].locs.x)) * self.list_of_datasets[idx].pixelsize / 1000)} µm\n" +
-            f"Imageheigth: {np.round((max(self.list_of_datasets[idx].locs.y) - min(self.list_of_datasets[idx].locs.y)) * self.list_of_datasets[idx].pixelsize / 1000)} µm\n" +
-            f"Imagedepth: {np.round((max(self.list_of_datasets[idx].locs.z) - min(self.list_of_datasets[idx].locs.z)) * self.list_of_datasets[idx].pixelsize / 1000)} µm\n" +
-            f"Intensity per localisation\nmean: {np.round(np.mean(self.list_of_datasets[idx].locs.photons))}\nmax: " + f"{np.round(max(self.list_of_datasets[idx].locs.photons))}\nmin:" +
-            f" {np.round(min(self.list_of_datasets[idx].locs.photons))}\n")
+                                                     f"Imagewidth: {np.round((max(self.list_of_datasets[idx].locs.x) - min(self.list_of_datasets[idx].locs.x)) * self.list_of_datasets[idx].pixelsize / 1000,3)} µm\n" +
+            f"Imageheigth: {np.round((max(self.list_of_datasets[idx].locs.y) - min(self.list_of_datasets[idx].locs.y)) * self.list_of_datasets[idx].pixelsize / 1000,3)} µm\n" +
+            f"Imagedepth: {np.round((max(self.list_of_datasets[idx].locs.z) - min(self.list_of_datasets[idx].locs.z)) * self.list_of_datasets[idx].pixelsize / 1000,3)} µm\n" +
+            f"Intensity per localisation\nmean: {np.round(np.mean(self.list_of_datasets[idx].locs.photons),3)}\nmax: " + f"{np.round(max(self.list_of_datasets[idx].locs.photons),3)}\nmin:" +
+            f" {np.round(min(self.list_of_datasets[idx].locs.photons),3)}\n")
     else:
         self.Lnumberoflocs.addItem(
             "Statistics\n" + f"File: {filename}\n" + f"Number of locs: {len(self.list_of_datasets[idx].locs.x)}\n"
-                                                     f"Imagewidth: {np.round((max(self.list_of_datasets[idx].locs.x) - min(self.list_of_datasets[idx].locs.x)) * self.list_of_datasets[idx].pixelsize / 1000)} µm\n" +
-            f"Imageheigth: {np.round((max(self.list_of_datasets[idx].locs.y) - min(self.list_of_datasets[idx].locs.y)) * self.list_of_datasets[idx].pixelsize / 1000)} µm\n" +
-            f"Intensity per localisation\nmean: {np.round(np.mean(self.list_of_datasets[idx].locs.photons))}\nmax: " + f"{np.round(max(self.list_of_datasets[idx].locs.photons))}\nmin:" +
-            f" {np.round(min(self.list_of_datasets[idx].locs.photons))}\n")
+                                                     f"Imagewidth: {np.round((max(self.list_of_datasets[idx].locs.x) - min(self.list_of_datasets[idx].locs.x)) * self.list_of_datasets[idx].pixelsize / 1000,3)} µm\n" +
+            f"Imageheigth: {np.round((max(self.list_of_datasets[idx].locs.y) - min(self.list_of_datasets[idx].locs.y)) * self.list_of_datasets[idx].pixelsize / 1000,3)} µm\n" +
+            f"Intensity per localisation\nmean: {np.round(np.mean(self.list_of_datasets[idx].locs.photons),3)}\nmax: " + f"{np.round(max(self.list_of_datasets[idx].locs.photons),3)}\nmin:" +
+            f" {np.round(min(self.list_of_datasets[idx].locs.photons),3)}\n")
 
 
 def load_info(path):
@@ -824,7 +823,6 @@ def load_SMLM(self, file_path):
         locs = np.rec.array(
             (prop['frame'], prop['x'] / pixelsize, prop['y'] / pixelsize, prop['z'] / pixelsize,
              prop['intensity_photon_']), dtype=LOCS_DTYPE_3D)
-        print("3D")
         zdim = True
         self.C3d.setChecked(True)
     except:
