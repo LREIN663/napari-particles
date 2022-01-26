@@ -212,11 +212,11 @@ class dataset():
         self.pixelsize = pixelsize
         self.parent = parent
         self.calc_sigmas()
-        self.camera_angle = None
+        self.camera_center = None
         self.colormap = None
 
     def calc_sigmas(self):
-        if self.parent.Brenderoptions.currentText() == "individual gaussian":
+        if self.parent.Brenderoptions.currentText() == "variable gaussian":
             sigma = float(self.parent.Esigma.text()) / np.sqrt(self.locs.photons) / 2.354
             sigmaz = float(self.parent.Esigma2.text()) / np.sqrt(self.locs.photons) / 2.354
             self.sigma = np.swapaxes([sigmaz, sigma, sigma], 0, 1)
@@ -303,20 +303,20 @@ class SMLMQW(QWidget):
         layout.addWidget(self.Lrenderoptions, 3, 0)
 
         self.Brenderoptions = QComboBox()
-        self.Brenderoptions.addItems(["individual gaussian", "fixed gaussian"])
+        self.Brenderoptions.addItems(["variable gaussian", "fixed gaussian"])
         self.Brenderoptions.currentIndexChanged.connect(self.render_options_changed)
         layout.addWidget(self.Brenderoptions, 3, 1)
 
         self.Lsigma = QLabel()
-        self.Lsigma.setText("FWHM(PSF) in XY [nm]:")
+        self.Lsigma.setText("PSF FWHM in XY [nm]:")
         layout.addWidget(self.Lsigma, 4, 0)
 
         self.Lsigma2 = QLabel()
-        self.Lsigma2.setText("FWHM(PSF) in Z [nm]:")
+        self.Lsigma2.setText("PSF FWHM in Z [nm]:")
         layout.addWidget(self.Lsigma2, 5, 0)
 
         self.Esigma = QLineEdit()
-        self.Esigma.setText("10")
+        self.Esigma.setText("300")
         self.Esigma.textChanged.connect(lambda: self.start_typing_timer(self.typing_timer_sigma))
         layout.addWidget(self.Esigma, 4, 1)
         self.typing_timer_sigma = QtCore.QTimer()
@@ -324,7 +324,7 @@ class SMLMQW(QWidget):
         self.typing_timer_sigma.timeout.connect(lambda: update_layers(self))
 
         self.Esigma2 = QLineEdit()
-        self.Esigma2.setText("15")
+        self.Esigma2.setText("700")
         self.Esigma2.textChanged.connect(lambda: self.start_typing_timer(self.typing_timer_sigma))
         layout.addWidget(self.Esigma2, 5, 1)
 
@@ -378,6 +378,19 @@ class SMLMQW(QWidget):
         self.C3d.stateChanged.connect(self.threed)
         layout.addWidget(self.C3d, 11, 1)
 
+        self.Lperformance = QLabel()
+        self.Lperformance.setText("Performance - Image Quality")
+        layout.addWidget(self.Lperformance,12,0)
+
+        self.Sperformance = QSlider(Qt.Horizontal)
+        self.Sperformance.setMinimum(5)
+        self.Sperformance.setMaximum(105)
+        self.Sperformance.setSingleStep(10)
+        self.Sperformance.setValue(35)
+        self.Sperformance.valueChanged.connect(lambda: self.start_typing_timer(self.typing_timer_sigma))
+        layout.addWidget(self.Sperformance,12,1)
+
+
         layout.setColumnStretch(0, 2)
         self.setLayout(layout)
 
@@ -392,14 +405,18 @@ class SMLMQW(QWidget):
         v = napari.current_viewer()
         if self.Cscalebar.isChecked() and not not all(self.list_of_datasets[-1].locs):
             l = int(self.Esbsize.text())
-            xsb = [[0, 0], [+0.1 * l, 0], [+0.1 * l, l], [0, l]]
+            xsb = [[0, 0, 0], [0, +0.1 * l, 0], [0, +0.1 * l, l], [0, 0, l]]
+            xsb2 = [[0.1*l, 0, 0], [0.1*l, +0.1 * l, 0], [0.1*l, +0.1 * l, l], [0.1*l, 0, l]]
+            xsb3= [[0, 0, 0], [ +0.1 * l, 0 ,0], [ +0.1 * l ,0 , l], [0, 0, l]]
+            xsb4 = [[+0.1 * l, 0, 0], [+0.1 * l, +0.1 * l, 0], [+0.1 * l, +0.1 * l, l], [+0.1 * l, 0, l]]
+            xsb=[xsb,xsb2,xsb3,xsb4]
             if self.scalebar_exists:
                 v.layers.remove('scalebar')
                 self.scalebar_layer = v.add_shapes(xsb, shape_type='polygon', face_color='white', name='scalebar',
-                                                   edge_color='red', edge_width=0.05 * l)
+                                                   edge_color='red', edge_width=0)
             else:
                 self.scalebar_layer = v.add_shapes(xsb, shape_type='polygon', face_color='white', name='scalebar',
-                                                   edge_color='red', edge_width=0.05 * l)
+                                                   edge_color='red', edge_width=0)
                 self.scalebar_exists = True
         else:
             if self.scalebar_exists:
@@ -421,28 +438,32 @@ class SMLMQW(QWidget):
             v.dims.ndisplay = 2
 
     def start_typing_timer(self, timer):
-        timer.start(2000)
+        timer.start(500)
 
     def change_camera(self):
         v = napari.current_viewer()
+        values= {}
         if self.Baxis.currentText() == "XY":
-            v.camera.set_view_direction((1, 0, 0))
+            v.camera.angles=(0,0,90)
         elif self.Baxis.currentText() == "XZ":
-            v.camera.set_view_direction((0, -1, 0))
-            # print(v.camera.view_direction)
+            v.camera.angles=(0,0,180)
         else:
-            v.camera.set_view_direction((0.001, -0.001, -1))
-            # print(v.camera.view_direction)
+            v.camera.angles=(-90,-90,-90)
+        v.camera.center = self.list_of_datasets[-1].camera_center[0]
+        v.camera.zoom =self.list_of_datasets[-1].camera_center[1]
+        v.camera.update(values)
 
     def render_options_changed(self):
-        if self.Brenderoptions.currentText() == "individual gaussian":
+        if self.Brenderoptions.currentText() == "variable gaussian":
             self.Lsigma2.show()
             self.Esigma2.show()
-            self.Lsigma.setText("FWHM(PSF) in XY [nm]")
+            self.Lsigma.setText("PSF FWHM in XY [nm]")
+            self.Esigma.setText("300")
         else:
             self.Lsigma2.hide()
             self.Esigma2.hide()
-            self.Lsigma.setText("FWHM [nm]")
+            self.Lsigma.setText("FWHM in XY [nm]")
+            self.Esigma.setText("10")
         update_layers(self)
 
 
@@ -467,7 +488,13 @@ from napari_particles.particles import Particles
 
 
 def open_STORM_data(self, file_path=None):
+    v=napari.current_viewer()
     if not self.list_of_datasets:
+        self.Lnumberoflocs.clear()
+    else :
+        for i in range(len(self.list_of_datasets)):
+            v.layers.remove(self.list_of_datasets[i].name)
+        self.list_of_datasets=[]
         self.Lnumberoflocs.clear()
     Tk().withdraw()
     if not file_path:
@@ -489,17 +516,18 @@ def open_STORM_data(self, file_path=None):
         raise TypeError("unknown File extension for STORM Data files...")
 
 
-def create_new_layer(self, aas=0.1, pixelsize=130, particle_size=130, layer_name="SMLM Data", idx=-1):
+def create_new_layer(self, aas=0.1, pixelsize=130, layer_name="SMLM Data", idx=-1):
     coords = get_coords_from_locs(self, pixelsize, idx)
     values = np.ones_like(coords[:, 0])
     values = values * 100
     v = napari.current_viewer()  # Just to get the sigmas
-    size=self.list_of_datasets[idx].sigma/pixelsize
-    self.list_of_datasets[idx].layer = Particles(coords, size=size[:,2],
+    print(v.window.qt_viewer.view.camera.get_state())
+    size=self.Sperformance.value()
+    self.list_of_datasets[idx].layer = Particles(coords, size=size,
                                                  values=values,
                                                  antialias=aas,
                                                  colormap='Spectral',
-                                                 sigmas=self.list_of_datasets[idx].sigma / particle_size,
+                                                 sigmas=self.list_of_datasets[idx].sigma / pixelsize,
                                                  filter=None,
                                                  name=layer_name,
                                                  )
@@ -514,34 +542,46 @@ def create_new_layer(self, aas=0.1, pixelsize=130, particle_size=130, layer_name
     v.camera.perspective = 50
     self.list_of_datasets[idx].layer.shading = 'gaussian'
     show_infos(self, layer_name, idx)
+    self.list_of_datasets[idx].camera_center=[v.camera.center,v.camera.zoom]
 
 
-def update_layers(self, aas=0.1, pixelsize=130, particle_size=130, layer_name="SMLM Data"):
+def update_layers(self, aas=0.1, pixelsize=130,  layer_name="SMLM Data"):
     v = napari.current_viewer()
-    cache_camera = [v.camera.view_direction, v.camera.zoom]
+    cache_camera = [v.camera.angles, v.camera.zoom]
     for i in range(len(self.list_of_datasets)):
-        print(i)
         self.list_of_datasets[i].calc_sigmas()
         self.list_of_datasets[i].update_locs()
         cache_colormap = self.list_of_datasets[i].layer.colormap
         v.layers.remove(self.list_of_datasets[i].name)
         coords = get_coords_from_locs(self, pixelsize, i)
         values = np.ones_like(coords[:, 0])
-        size = values * particle_size
+        size=self.Sperformance.value()
         values = values * 100
         self.list_of_datasets[i].layer = Particles(coords, size=size,
                                                    values=values,
                                                    antialias=aas,
                                                    colormap=cache_colormap,
-                                                   sigmas=self.list_of_datasets[i].sigma / particle_size,
+                                                   sigmas=self.list_of_datasets[i].sigma / pixelsize,
                                                    filter=None,
                                                    name=self.list_of_datasets[i].name,
                                                    )
         self.list_of_datasets[i].layer.add_to_viewer(v)
         self.list_of_datasets[i].layer.contrast_limits = (0, 1)
         self.list_of_datasets[i].layer.shading = 'gaussian'
-    v.camera.set_view_direction(cache_camera[0])
+    v.camera.angles=cache_camera[0]
     v.camera.zoom = cache_camera[1]
+    v.camera.update({})
+
+""" Alternative to update the layers, which should be faster --> does not work yet 
+def update_layers_alt(self, aas=0.1, pixelsize=130,  layer_name="SMLM Data"):
+    v = napari.current_viewer()
+    for i in range(len(self.list_of_datasets)):
+        self.list_of_datasets[i].calc_sigmas()
+        self.list_of_datasets[i].update_locs()
+        self.list_of_datasets[i].layer.coords=get_coords_from_locs(self, pixelsize, i)
+        print(self.list_of_datasets[i].name)
+        v.layers[i]=self.list_of_datasets[i].layer
+"""
 
 
 def get_coords_from_locs(self, pixelsize, idx):
@@ -618,7 +658,7 @@ def load_hdf5(self, file_path):
         self.C3d.setChecked(True)
     except:
         pass
-    create_new_layer(self=self, aas=0.1, pixelsize=pixelsize, particle_size=130, layer_name=filename, idx=-1)
+    create_new_layer(self=self, aas=0.1, pixelsize=pixelsize,  layer_name=filename, idx=-1)
 
 
 def load_h5(self, file_path):
@@ -640,7 +680,7 @@ def load_h5(self, file_path):
     for i in range(num_channel):
         locs_in_ch=locs[data['CHANNEL']==i]
         self.list_of_datasets.append(dataset(locs=locs_in_ch, zdim=zdim, parent=self, pixelsize=pixelsize, name=filename+f" Channel {i+1}"))
-        create_new_layer(self=self, aas=0.1, pixelsize=pixelsize, particle_size=130, layer_name=filename+f" Channel {i+1}", idx=-1)
+        create_new_layer(self=self, aas=0.1, pixelsize=pixelsize,  layer_name=filename+f" Channel {i+1}", idx=-1)
 
 
 def load_csv(self, file_path):
@@ -671,7 +711,7 @@ def load_csv(self, file_path):
             dtype=LOCS_DTYPE_2D, )
         zdim = False
     self.list_of_datasets.append(dataset(locs=locs, zdim=zdim, parent=self, pixelsize=pixelsize, name=filename))
-    create_new_layer(self=self, aas=0.1, pixelsize=pixelsize, particle_size=130, layer_name=filename, idx=-1)
+    create_new_layer(self=self, aas=0.1, pixelsize=pixelsize,  layer_name=filename, idx=-1)
 
 
 ## load_SMLM adapted from Marting Weigerts readSmlmFile
@@ -784,6 +824,7 @@ def load_SMLM(self, file_path):
         locs = np.rec.array(
             (prop['frame'], prop['x'] / pixelsize, prop['y'] / pixelsize, prop['z'] / pixelsize,
              prop['intensity_photon_']), dtype=LOCS_DTYPE_3D)
+        print("3D")
         zdim = True
         self.C3d.setChecked(True)
     except:
@@ -792,6 +833,6 @@ def load_SMLM(self, file_path):
              prop['intensity_photon_']), dtype=LOCS_DTYPE_2D)
         zdim = False
     self.list_of_datasets.append(dataset(locs=locs, zdim=zdim, parent=self, pixelsize=pixelsize, name=filename))
-    create_new_layer(self=self, aas=0.1, pixelsize=pixelsize, particle_size=130, layer_name=filename, idx=-1)
+    create_new_layer(self=self, aas=0.1, pixelsize=pixelsize, layer_name=filename, idx=-1)
 
 ##### Lowest Order functions
