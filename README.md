@@ -4,18 +4,40 @@ A particle layer for napari (super rough draft)
 
 ----------------------------------
 
-![Demo](images/particles.gif)
+Extension of Napari Particles that provides a dock widget within Napari into which .hdf5 (Picasso), .smlm, .csv (Thunderstorm) and .h5 files can be imported and rendered via drag and drop. 
 
 ## Installation
 
-Clone the repo and install 
+For the time being, the easiest way to install is as follows: 
+
+create an enviroment, e.g. using anaconda terminal with 
 
 ```
-git clone git@github.com:maweigert/napari-particles.git
-pip install napari-particles/
+conda create --name napari-particles
+activate napari-particles
+```
+
+clone this repository using and install it using 
+
+```
+git clone https://github.com/LREIN663/napari-particles
+cd napari-particles
+pip install -r requirements.txt
 ```
 
 ## Usage
+
+active the created enviroment in the anaconda terminal and start napari
+
+```
+activate napari-particles
+napari
+```
+
+Now under plugins click napari-particles: SMLMQW and the dock widget should open. Now you can either use the import button or simply drag the file you are trying to open onto the list.
+
+
+## Usage (Original Repo)
 
 
 ```python
