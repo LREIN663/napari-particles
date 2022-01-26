@@ -512,6 +512,8 @@ def open_STORM_data(self, file_path=None):
         load_SMLM(self, file_path)
     elif filetype == "h5":
         load_h5(self, file_path)
+    elif filetype == "json":
+        load_mfx_json(self,file_path)
     else:
         raise TypeError("unknown File extension for STORM Data files...")
 
@@ -680,6 +682,30 @@ def load_h5(self, file_path):
         locs_in_ch=locs[data['CHANNEL']==i]
         self.list_of_datasets.append(dataset(locs=locs_in_ch, zdim=zdim, parent=self, pixelsize=pixelsize, name=filename+f" Channel {i+1}"))
         create_new_layer(self=self, aas=0.1, pixelsize=pixelsize,  layer_name=filename+f" Channel {i+1}", idx=-1)
+
+def load_mfx_json(self,file_path): # 3D not implemented yet
+    LOCS_DTYPE_2D = [("frame", "f4"), ("x", "f4"), ("y", "f4"), ("photons", "f4")]
+    filename = file_path.split('/')[-1]
+    with open(file_path) as f:
+        raw_data=json.load(f)
+    f.close()
+    locsx=[]
+    locsy=[]
+    for i in range(len(raw_data)):
+        if raw_data[i]['vld']:
+            locsx.append(raw_data[i]['itr'][-1]['lcx']*1E9)
+            locsy.append(raw_data[i]['itr'][-1]['lcy']*1E9)
+
+    frames=np.ones(len(locsx))
+    photons=1000*np.ones(len(locsx))
+    locs = np.rec.array(
+        (frames,locsx, locsx, photons),
+        dtype=LOCS_DTYPE_2D, )
+    zdim = False
+    pixelsize=1
+    self.list_of_datasets.append(dataset(locs=locs, zdim=zdim, parent=self, pixelsize=pixelsize, name=filename))
+    create_new_layer(self=self, aas=0.1, pixelsize=pixelsize, layer_name=filename, idx=-1)
+
 
 
 def load_csv(self, file_path):
