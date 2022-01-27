@@ -217,11 +217,13 @@ class dataset():
 
     def calc_sigmas(self):
         if self.parent.Brenderoptions.currentText() == "variable gaussian":
-            sigma = float(self.parent.Esigma.text()) / np.sqrt(self.locs.photons) / 2.354
-            sigmaz = float(self.parent.Esigma2.text()) / np.sqrt(self.locs.photons) / 2.354
+            sigma = float(self.parent.Esigma.text()) / np.sqrt(self.locs.photons/10) / 2.354 *1E-2
+            sigmaz = float(self.parent.Esigma2.text()) / np.sqrt(self.locs.photons/10) / 2.354 *1E-2
             self.sigma = np.swapaxes([sigmaz, sigma, sigma], 0, 1)
+            print(f"Sigma XY {sigma[0]}")
         else:
-            self.sigma= float(self.parent.Esigma.text()) / 2.354
+            self.sigma= float(self.parent.Esigma.text()) / 2.354 *1E-2
+            print(f"Sigma XYZ {self.sigma}")
 
 
     def update_locs(self):
@@ -232,6 +234,7 @@ class dataset():
         y0, y1 = self.parent.Sx.getRange()
         xscale = max(self.locs.x) - min(self.locs.x)
         yscale = max(self.locs.y) - min(self.locs.y)
+
         x0 = x0 * xscale / 100
         x1 = x1 * xscale / 100
         y0 = y0 * yscale / 100
@@ -403,13 +406,11 @@ class SMLMQW(QWidget):
 
     def scalebar(self):
         v = napari.current_viewer()
+        cpos=v.window.qt_viewer.camera.center
+        l = int(self.Esbsize.text())
+        center=[cpos[2]-l/2,cpos[1]]
         if self.Cscalebar.isChecked() and not not all(self.list_of_datasets[-1].locs):
-            l = int(self.Esbsize.text())
-            xsb = [[0, 0, 0], [0, +0.1 * l, 0], [0, +0.1 * l, l], [0, 0, l]]
-            xsb2 = [[0.1*l, 0, 0], [0.1*l, +0.1 * l, 0], [0.1*l, +0.1 * l, l], [0.1*l, 0, l]]
-            xsb3= [[0, 0, 0], [ +0.1 * l, 0 ,0], [ +0.1 * l ,0 , l], [0, 0, l]]
-            xsb4 = [[+0.1 * l, 0, 0], [+0.1 * l, +0.1 * l, 0], [+0.1 * l, +0.1 * l, l], [+0.1 * l, 0, l]]
-            xsb=[xsb,xsb2,xsb3,xsb4]
+            xsb = [[center[1], center[0]], [center[1]+0.1 * l, center[0]], [center[1]+0.1 * l,center[0]+l ], [center[1],center[0]+l ]]
             if self.scalebar_exists:
                 v.layers.remove('scalebar')
                 self.scalebar_layer = v.add_shapes(xsb, shape_type='polygon', face_color='white', name='scalebar',
@@ -514,12 +515,15 @@ def open_STORM_data(self, file_path=None):
         load_h5(self, file_path)
     elif filetype == "json":
         load_mfx_json(self,file_path)
+    elif filetype == "npy":
+        load_mfx_npy(self,file_path)
     else:
         raise TypeError("unknown File extension for STORM Data files...")
 
 
-def create_new_layer(self, aas=0.1, pixelsize=130, layer_name="SMLM Data", idx=-1):
-    coords = get_coords_from_locs(self, pixelsize, idx)
+def create_new_layer(self, aas=0.1, layer_name="SMLM Data", idx=-1):
+    print(f"Pixelsize {self.list_of_datasets[idx].pixelsize}")
+    coords = get_coords_from_locs(self, self.list_of_datasets[idx].pixelsize, idx)
     values = np.ones_like(coords[:, 0])
     values = values * 100
     v = napari.current_viewer()  # Just to get the sigmas
@@ -528,7 +532,7 @@ def create_new_layer(self, aas=0.1, pixelsize=130, layer_name="SMLM Data", idx=-
                                                  values=values,
                                                  antialias=aas,
                                                  colormap='Spectral',
-                                                 sigmas=self.list_of_datasets[idx].sigma / pixelsize,
+                                                 sigmas=self.list_of_datasets[idx].sigma,
                                                  filter=None,
                                                  name=layer_name,
                                                  )
@@ -546,15 +550,15 @@ def create_new_layer(self, aas=0.1, pixelsize=130, layer_name="SMLM Data", idx=-
     self.list_of_datasets[idx].camera_center=[v.camera.center,v.camera.zoom]
 
 
-def update_layers(self, aas=0.1, pixelsize=130,  layer_name="SMLM Data"):
+def update_layers(self, aas=0.1,  layer_name="SMLM Data"):
     v = napari.current_viewer()
     cache_camera = [v.camera.angles, v.camera.zoom]
+
     for i in range(len(self.list_of_datasets)):
-        self.list_of_datasets[i].calc_sigmas()
         self.list_of_datasets[i].update_locs()
         cache_colormap = self.list_of_datasets[i].layer.colormap
         v.layers.remove(self.list_of_datasets[i].name)
-        coords = get_coords_from_locs(self, pixelsize, i)
+        coords = get_coords_from_locs(self, self.list_of_datasets[i].pixelsize, i)
         values = np.ones_like(coords[:, 0])
         size=self.Sperformance.value()
         values = values * 100
@@ -562,7 +566,7 @@ def update_layers(self, aas=0.1, pixelsize=130,  layer_name="SMLM Data"):
                                                    values=values,
                                                    antialias=aas,
                                                    colormap=cache_colormap,
-                                                   sigmas=self.list_of_datasets[i].sigma / pixelsize,
+                                                   sigmas=self.list_of_datasets[i].sigma,
                                                    filter=None,
                                                    name=self.list_of_datasets[i].name,
                                                    )
@@ -572,6 +576,7 @@ def update_layers(self, aas=0.1, pixelsize=130,  layer_name="SMLM Data"):
     v.camera.angles=cache_camera[0]
     v.camera.zoom = cache_camera[1]
     v.camera.update({})
+
 
 """ Alternative to update the layers, which should be faster --> does not work yet 
 def update_layers_alt(self, aas=0.1, pixelsize=130,  layer_name="SMLM Data"):
@@ -659,7 +664,7 @@ def load_hdf5(self, file_path):
         self.C3d.setChecked(True)
     except:
         pass
-    create_new_layer(self=self, aas=0.1, pixelsize=pixelsize,  layer_name=filename, idx=-1)
+    create_new_layer(self=self, aas=0.1,  layer_name=filename, idx=-1)
 
 
 def load_h5(self, file_path):
@@ -681,31 +686,95 @@ def load_h5(self, file_path):
     for i in range(num_channel):
         locs_in_ch=locs[data['CHANNEL']==i]
         self.list_of_datasets.append(dataset(locs=locs_in_ch, zdim=zdim, parent=self, pixelsize=pixelsize, name=filename+f" Channel {i+1}"))
-        create_new_layer(self=self, aas=0.1, pixelsize=pixelsize,  layer_name=filename+f" Channel {i+1}", idx=-1)
+        create_new_layer(self=self, aas=0.1,  layer_name=filename+f" Channel {i+1}", idx=-1)
 
 def load_mfx_json(self,file_path): # 3D not implemented yet
     LOCS_DTYPE_2D = [("frame", "f4"), ("x", "f4"), ("y", "f4"), ("photons", "f4")]
+    LOCS_DTYPE_3D = [("frame", "f4"), ("x", "f4"), ("y", "f4"), ("z", "f4"), ("photons", "f4")]
     filename = file_path.split('/')[-1]
     with open(file_path) as f:
         raw_data=json.load(f)
     f.close()
     locsx=[]
     locsy=[]
-    for i in range(len(raw_data)):
-        if raw_data[i]['vld']:
-            locsx.append(raw_data[i]['itr'][-1]['lcx']*1E9)
-            locsy.append(raw_data[i]['itr'][-1]['lcy']*1E9)
-
-    frames=np.ones(len(locsx))
-    photons=1000*np.ones(len(locsx))
-    locs = np.rec.array(
-        (frames,locsx, locsx, photons),
-        dtype=LOCS_DTYPE_2D, )
-    zdim = False
-    pixelsize=1
+    minx = min(raw_data['itr'][-1]['loc'][0])
+    miny = min(raw_data['itr'][-1]['loc'][1])
+    try:
+        minz = min(raw_data['itr'][-1]['loc'][2])
+        zdim = True
+        self.C3d.setChecked(True)
+    except:
+        zdim = False
+    if zdim:
+        locsz = []
+        for i in range(len(raw_data)):
+            if raw_data['vld'][i]:
+                locsx.append((raw_data[i]['itr'][-1]['loc'][0] - minx) * 1E9)
+                locsy.append((raw_data[i]['itr'][-1]['loc'][1] - miny) * 1E9)
+                locsz.append((raw_data[i]['itr'][-1]['loc'][2] - minz) * 1E9)
+        frames = np.ones(len(locsx))
+        photons = 1000 * np.ones(len(locsx))
+        pixelsize = 1
+        locs = np.rec.array(
+            (frames, locsx, locsy, locsz, photons),
+            dtype=LOCS_DTYPE_3D, )
+    else:
+        for i in range(len(raw_data)):
+            if raw_data['vld'][i]:
+                locsx.append((raw_data[i]['itr'][-1]['loc'][0] - minx) * 1E9)
+                locsy.append((raw_data[i]['itr'][-1]['loc'][1] - miny) * 1E9)
+        frames = np.ones(len(locsx))
+        photons = 1000 * np.ones(len(locsx))
+        pixelsize = 1
+        locs = np.rec.array(
+            (frames, locsx, locsy, photons),
+            dtype=LOCS_DTYPE_2D, )
     self.list_of_datasets.append(dataset(locs=locs, zdim=zdim, parent=self, pixelsize=pixelsize, name=filename))
-    create_new_layer(self=self, aas=0.1, pixelsize=pixelsize, layer_name=filename, idx=-1)
+    create_new_layer(self=self, aas=0.1, layer_name=filename, idx=-1)
 
+
+
+def load_mfx_npy(self,file_path):
+    LOCS_DTYPE_2D = [("frame", "f4"), ("x", "f4"), ("y", "f4"), ("photons", "f4")]
+    LOCS_DTYPE_3D = [("frame", "f4"), ("x", "f4"), ("y", "f4"), ("z", "f4"), ("photons", "f4")]
+    filename = file_path.split('/')[-1]
+    raw_data=np.load(file_path)
+    locsx=[]
+    locsy=[]
+    minx= min(raw_data['itr']['loc'][:,-1,0])
+    miny=min(raw_data['itr']['loc'][:,-1,1])
+    try:
+        minz=min(raw_data['itr']['loc'][:,-1,2])
+        zdim=True
+        self.C3d.setChecked(True)
+    except:
+        zdim=False
+    if zdim:
+        locsz=[]
+        for i in range(len(raw_data)):
+            if raw_data['vld'][i]:
+                locsx.append((raw_data['itr']['loc'][i, -1, 0] - minx) * 1E9)
+                locsy.append((raw_data['itr']['loc'][i, -1, 1] - miny) * 1E9)
+                locsz.append((raw_data['itr']['loc'][i, -1, 2] - minz) * 1E9)
+        frames = np.ones(len(locsx))
+        photons = 1000 * np.ones(len(locsx))
+        pixelsize = 1
+        locs = np.rec.array(
+            (frames, locsx, locsy, locsz, photons),
+            dtype=LOCS_DTYPE_3D, )
+    else:
+        for i in range(len(raw_data)):
+            if raw_data['vld'][i]:
+                locsx.append((raw_data['itr']['loc'][i, -1, 0]-minx)*1E9)
+                locsy.append((raw_data['itr']['loc'][i, -1, 1]-miny)*1E9)
+        frames = np.ones(len(locsx))
+        photons = 1000 * np.ones(len(locsx))
+        pixelsize = 1
+        locs = np.rec.array(
+            (frames, locsx, locsy, photons),
+            dtype=LOCS_DTYPE_2D, )
+    self.list_of_datasets.append(dataset(locs=locs, zdim=zdim, parent=self, pixelsize=pixelsize, name=filename))
+    create_new_layer(self=self, aas=0.1, layer_name=filename, idx=-1)
 
 
 def load_csv(self, file_path):
@@ -736,7 +805,7 @@ def load_csv(self, file_path):
             dtype=LOCS_DTYPE_2D, )
         zdim = False
     self.list_of_datasets.append(dataset(locs=locs, zdim=zdim, parent=self, pixelsize=pixelsize, name=filename))
-    create_new_layer(self=self, aas=0.1, pixelsize=pixelsize,  layer_name=filename, idx=-1)
+    create_new_layer(self=self, aas=0.1,  layer_name=filename, idx=-1)
 
 
 ## load_SMLM adapted from Marting Weigerts readSmlmFile
@@ -857,6 +926,6 @@ def load_SMLM(self, file_path):
              prop['intensity_photon_']), dtype=LOCS_DTYPE_2D)
         zdim = False
     self.list_of_datasets.append(dataset(locs=locs, zdim=zdim, parent=self, pixelsize=pixelsize, name=filename))
-    create_new_layer(self=self, aas=0.1, pixelsize=pixelsize, layer_name=filename, idx=-1)
+    create_new_layer(self=self, aas=0.1,  layer_name=filename, idx=-1)
 
 ##### Lowest Order functions
