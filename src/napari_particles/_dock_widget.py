@@ -1,19 +1,154 @@
 from PyQt5.QtGui import QPaintEvent, QPainter, QPalette, QBrush, QMouseEvent
 from napari_plugin_engine import napari_hook_implementation
-from qtpy.QtWidgets import QWidget, QPushButton, QLabel, QComboBox, QListWidget
+from qtpy.QtWidgets import QWidget, QPushButton, QLabel, QComboBox, QListWidget, QWidget
 from PyQt5.QtWidgets import QGridLayout, QStyleOptionSlider, QSlider, QSizePolicy, QStyle, QApplication, QLineEdit, \
     QCheckBox
 from PyQt5 import QtCore, QtGui
 from PyQt5.QtCore import Qt, QRect, QSize
 import easygui
+import napari
 
+class MouseControlls(QWidget):
+    def __init__(self):
+        super().__init__()
+        print("Hello")
+        self.viewer = napari.current_viewer()
+        self.mouse_down = False
+        self.mode = None
+        self.active = False
+
+    def _handle_moveL(self, x, y):
+
+        #self.viewer.camera.zoom *= 1.0025
+        delta_x = x - self.start_x
+        delta_y = y - self.start_y
+        alpha, beta, gamma = self.viewer.camera.angles
+        relative_x = delta_x / self.viewer.window.qt_viewer.width() * 50
+        relative_y = delta_y / self.viewer.window.qt_viewer.height() * 15
+        gamma -= relative_y
+        beta -= relative_x
+        if beta <-90:
+            print(beta)
+        z, y, x = self.viewer.camera.center
+        y += np.cos(2 * 3.14145 * gamma / 360) * self.viewer.window.qt_viewer.height() * 0.05
+        x -= np.sin(2 * 3.14145 * beta / 360) * self.viewer.window.qt_viewer.width() * 0.05
+        self.viewer.camera.center = (z, y, x)
+        self.viewer.camera.angles = (alpha, beta, gamma)
+
+    def _handle_moveR(self, x, y):
+        #self.viewer.camera.zoom *= 0.9975
+        delta_x = x - self.start_x
+        delta_y = y - self.start_y
+        alpha, beta, gamma = self.viewer.camera.angles
+        relative_x = delta_x / self.viewer.window.qt_viewer.width() * 7.5
+        relative_y = delta_y / self.viewer.window.qt_viewer.height() * 7.5
+        gamma -= relative_y
+        beta -= relative_x
+        z, y, x = self.viewer.camera.center
+        y -= np.cos(2 * 3.14145 * gamma / 360) * self.viewer.window.qt_viewer.height() * 0.05
+        x += np.sin(2 * 3.14145 * beta / 360) * self.viewer.window.qt_viewer.width() * 0.05
+        self.viewer.camera.center = (z, y, x)
+        # print(alpha,beta,gamma)
+        self.viewer.camera.angles = (alpha, beta, gamma)
+        # print(self.viewer.camera.center)
+
+    def _activate(self):
+            print("Custom controlls active")
+
+            self.copy_on_mouse_press = self.viewer.window.qt_viewer.on_mouse_press
+            self.copy_on_mouse_move = self.viewer.window.qt_viewer.on_mouse_move
+            self.copy_on_mouse_release = self.viewer.window.qt_viewer.on_mouse_release
+            self.copy_on_key_press = self.viewer.window.qt_viewer.keyPressEvent
+
+            def our_key_press(event=None): # not used atm
+                print("Hello")
+                z,y,x = self.viewer.camera.center
+                alpha,beta,gamma= self.viewer.camera.angles
+                print(event.key())
+                if event.key()==87: #W
+                    self.viewer.camera.zoom *= 1.1
+                elif event.key()==83: #S
+                    self.viewer.camera.zoom *= 0.9
+                elif  event.key()==65: #A
+                    alpha+=2.5
+                elif event.key()==68:
+                    alpha-=2.5
+                self.viewer.camera.center=(z,y,x)
+                self.viewer.camera.angles=(alpha,beta,gamma)
+
+
+
+            def our_mouse_wheel(event=None):
+                #print(event.delta)
+                if event.delta[-1]>0:
+                    self.viewer.camera.zoom *= 1.1
+                else:
+                    self.viewer.camera.zoom *= 0.9
+                #print(self.viewer.camera.zoom)
+
+            def our_mouse_press(event=None):
+                #print("mouse press", event.native.x(), event.native.y(), event.native.button())
+                self.mouse_down = True
+                self.start_x = event.native.x()
+                self.start_y = event.native.y()
+
+                self.current_step = list(self.viewer.dims.current_step)
+                #print("CURRENT step", self.current_step)
+
+                self._start_zoom = self.viewer.camera.zoom
+
+            def our_mouse_move(event=None):
+                if event.button == Qt.MouseButton.RightButton:
+                    if not self.mouse_down:
+                        return
+                    #print("mouse move", event.native.x(), event.native.y(), event.native.button())
+                    self._handle_moveR(event.native.x(), event.native.y())
+                else:
+                    if not self.mouse_down:
+                        return
+                    #print("mouse move", event.native.x(), event.native.y(), event.native.button())
+                    self._handle_moveL(event.native.x(), event.native.y())
+
+            def our_mouse_release(event=None):
+                if event.button == Qt.MouseButton.RightButton:
+                    if not self.mouse_down:
+                        return
+                    #print("mouse release", event.native.x(), event.native.y(), event.native.button())
+                    self._handle_moveR(event.native.x(), event.native.y())
+                    self.mouse_down = False
+                else:
+                    if not self.mouse_down:
+                        return
+                    #print("mouse release", event.native.x(), event.native.y(), event.native.button())
+                    self._handle_moveL(event.native.x(), event.native.y())
+                    self.mouse_down = False
+
+
+
+            self.viewer.window.qt_viewer.on_mouse_wheel = our_mouse_wheel
+            self.viewer.window.qt_viewer.on_mouse_press = our_mouse_press
+            self.viewer.window.qt_viewer.on_mouse_move = our_mouse_move
+            self.viewer.window.qt_viewer.on_mouse_release = our_mouse_release
+            #self.viewer.window.qt_viewer.keyPressEvent = our_key_press
+            self.viewer.camera.interactive = False
+            self.active = True
+
+    def _deactivate(self):
+        if not self.active:
+            return
+        self.viewer.window.qt_viewer.on_mouse_press = self.copy_on_mouse_press
+        self.viewer.window.qt_viewer.on_mouse_move = self.copy_on_mouse_move
+        self.viewer.window.qt_viewer.on_mouse_release = self.copy_on_mouse_release
+        #self.viewer.window.qt_viewer.keyPressEvent = self.copy_on_key_press
+        self.viewer.camera.interactive = True
+        self.active = False
 
 class RangeSlider(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent = parent
-        self.first_position = 0
-        self.second_position = 100
+        self.first_position = 1
+        self.second_position = 99
 
         self.opt = QStyleOptionSlider()
         self.opt.minimum = 0
@@ -193,9 +328,13 @@ class TestListView(QListWidget):
 
 class dataset():
     def __init__(self, locs=None, zdim=False, parent=None, name=None, pixelsize=130):
+        self.zdim = zdim
+        if zdim:
+            locs.z -= min(locs.z)
+        locs.y -= min(locs.y) # No negative Values, b/c napari doesn't like them
+        locs.x -= min(locs.x)
         self.locs = locs
         self.locs_backup = locs  # Needed if dataset is cut with sliders and then you want the data back
-        self.zdim = zdim
         self.layer = None
         self.name = name
         self.sigma = None
@@ -297,7 +436,7 @@ class SMLMQW(QWidget):
         layout.addWidget(self.Lrenderoptions, 3, 0)
 
         self.Brenderoptions = QComboBox()
-        self.Brenderoptions.addItems(["variable gaussian", "fixed gaussian"])
+        self.Brenderoptions.addItems(["fixed gaussian", "variable gaussian"])
         self.Brenderoptions.currentIndexChanged.connect(self.render_options_changed)
         layout.addWidget(self.Brenderoptions, 3, 1)
 
@@ -310,7 +449,7 @@ class SMLMQW(QWidget):
         layout.addWidget(self.Lsigma2, 5, 0)
 
         self.Esigma = QLineEdit()
-        self.Esigma.setText("300")
+        self.Esigma.setText("10")
         self.Esigma.textChanged.connect(lambda: self.start_typing_timer(self.typing_timer_sigma))
         layout.addWidget(self.Esigma, 4, 1)
         self.typing_timer_sigma = QtCore.QTimer()
@@ -318,7 +457,7 @@ class SMLMQW(QWidget):
         self.typing_timer_sigma.timeout.connect(lambda: update_layers(self))
 
         self.Esigma2 = QLineEdit()
-        self.Esigma2.setText("700")
+        self.Esigma2.setText("750")
         self.Esigma2.textChanged.connect(lambda: self.start_typing_timer(self.typing_timer_sigma))
         layout.addWidget(self.Esigma2, 5, 1)
 
@@ -384,16 +523,83 @@ class SMLMQW(QWidget):
         self.Sperformance.valueChanged.connect(lambda: self.start_typing_timer(self.typing_timer_sigma))
         layout.addWidget(self.Sperformance,12,1)
 
+        self.Baltpan = QCheckBox()
+        self.Baltpan.setText("activate experimental fly through mode")
+        self.Baltpan.stateChanged.connect(self.alt_controlls)
+        layout.addWidget(self.Baltpan,13,0)
+
+        self.custom_controlls = MouseControlls()
+
 
         layout.setColumnStretch(0, 2)
         self.setLayout(layout)
 
+        self.Lsigma2.hide()
+        self.Esigma2.hide()
         self.Sz.hide()
         self.Lrangez.hide()
         self.Lresetview.hide()
         self.Baxis.hide()
         self.L3d.hide()
         self.C3d.hide()
+
+        # Custom Keys : w and s for zoom
+        # q and e to switch trough axis
+        # a and d to rotate view
+        v = napari.current_viewer()
+        @v.bind_key('w')
+        def fly_ahead(v):
+            v.camera.zoom *= 1.1
+        @v.bind_key('s')
+        def fly_back(v):
+            self.viewer.camera.zoom *= 0.9
+        @v.bind_key('a')
+        def fly_rotate_l(v):
+            alpha,beta,gamma=v.camera.angles
+            print(alpha)
+            alpha += 30
+            if alpha >180:
+                alpha -= 360
+            self.viewer.camera.angles = (alpha, beta, gamma)
+        @v.bind_key('d')
+        def fly_rotate_d(v):
+            alpha, beta, gamma = v.camera.angles
+            print(alpha)
+            alpha -= 30
+            if alpha < -180:
+                alpha += 360
+            self.viewer.camera.angles = (alpha, beta, gamma)
+        @v.bind_key('q')
+        def fly_rotate_l(v):
+            alpha, beta, gamma = v.camera.angles
+            print(beta)
+            beta += 30
+            if beta > 90:
+                beta -= 180
+                gamma -=90
+            self.viewer.camera.angles = (alpha, beta, gamma)
+        @v.bind_key('e')
+        def fly_rotate_d(v):
+            alpha, beta, gamma = v.camera.angles
+            print(beta)
+            beta -= 30
+            if beta < -90:
+                beta += 180
+                gamma += 90
+            self.viewer.camera.angles = (alpha, beta, gamma)
+        @v.bind_key('r')
+        def fly_reset(v):
+            v.camera.angles=(0,0,90)
+            v.camera.center = self.list_of_datasets[-1].camera_center[0]
+            v.camera.zoom = self.list_of_datasets[-1].camera_center[1]
+
+
+    def alt_controlls(self):
+        print("swichting controlls")
+        if not self.Baltpan.isChecked():
+            self.custom_controlls._deactivate()
+        else:
+            self.custom_controlls._activate()
 
     def scalebar(self):
         v = napari.current_viewer()
@@ -538,12 +744,12 @@ def create_new_layer(self, aas=0.1, layer_name="SMLM Data", idx=-1):
     v.camera.perspective = 50
     self.list_of_datasets[idx].layer.shading = 'gaussian'
     show_infos(self, layer_name, idx)
-    self.list_of_datasets[idx].camera_center=[v.camera.center,v.camera.zoom]
+    self.list_of_datasets[idx].camera_center=[v.camera.center,v.camera.zoom, v.camera.angles]
 
 
 def update_layers(self, aas=0.1,  layer_name="SMLM Data"):
     v = napari.current_viewer()
-    cache_camera = [v.camera.angles, v.camera.zoom]
+    self.list_of_datasets[-1].camera = [v.camera.zoom, v.camera.center, v.camera.angles]
 
     for i in range(len(self.list_of_datasets)):
         self.list_of_datasets[i].update_locs()
@@ -564,8 +770,9 @@ def update_layers(self, aas=0.1,  layer_name="SMLM Data"):
         self.list_of_datasets[i].layer.add_to_viewer(v)
         self.list_of_datasets[i].layer.contrast_limits = (0, 1)
         self.list_of_datasets[i].layer.shading = 'gaussian'
-    v.camera.angles=cache_camera[0]
-    v.camera.zoom = cache_camera[1]
+    v.camera.angles = self.list_of_datasets[-1].camera[2]
+    v.camera.zoom = self.list_of_datasets[-1].camera[0]
+    v.camera.center = self.list_of_datasets[-1].camera[1]
     v.camera.update({})
 
 
@@ -648,13 +855,14 @@ def load_hdf5(self, file_path):
     except:
         pixelsize = int(easygui.enterbox("Pixelsize?"))
     self.pixelsize = pixelsize
-    self.list_of_datasets.append(dataset(locs=locs, parent=self, pixelsize=pixelsize, name=filename))
     try:
-        self.list_of_datasets[-1].locs.z
-        self.list_of_datasets[-1].zdim = True
+        locs.z
+        zdim = True
         self.C3d.setChecked(True)
     except:
-        pass
+        zdim=False
+    self.list_of_datasets.append(dataset(locs=locs, parent=self, zdim=zdim, pixelsize=pixelsize, name=filename))
+
     create_new_layer(self=self, aas=0.1,  layer_name=filename, idx=-1)
 
 
@@ -673,6 +881,7 @@ def load_h5(self, file_path):
     except:
         locs = np.rec.array((data['FRAME_NUMBER'], data['X_POS_PIXELS'], data['Y_POS_PIXELS'],
                              data['PHOTONS']), dtype=LOCS_DTYPE_2D)
+        zdim = False
     num_channel = max(data['CHANNEL']) + 1
     for i in range(num_channel):
         locs_in_ch=locs[data['CHANNEL']==i]
@@ -688,10 +897,7 @@ def load_mfx_json(self,file_path): # 3D not implemented yet
     f.close()
     locsx=[]
     locsy=[]
-    minx = min(raw_data['itr'][-1]['loc'][0])
-    miny = min(raw_data['itr'][-1]['loc'][1])
     try:
-        minz = min(raw_data['itr'][-1]['loc'][2])
         zdim = True
         self.C3d.setChecked(True)
     except:
@@ -700,9 +906,9 @@ def load_mfx_json(self,file_path): # 3D not implemented yet
         locsz = []
         for i in range(len(raw_data)):
             if raw_data['vld'][i]:
-                locsx.append((raw_data[i]['itr'][-1]['loc'][0] - minx) * 1E9)
-                locsy.append((raw_data[i]['itr'][-1]['loc'][1] - miny) * 1E9)
-                locsz.append((raw_data[i]['itr'][-1]['loc'][2] - minz) * 1E9)
+                locsx.append((raw_data[i]['itr'][-1]['loc'][0]) * 1E9)
+                locsy.append((raw_data[i]['itr'][-1]['loc'][1]) * 1E9)
+                locsz.append((raw_data[i]['itr'][-1]['loc'][2]) * 1E9)
         frames = np.ones(len(locsx))
         photons = 1000 * np.ones(len(locsx))
         pixelsize = 1
@@ -712,8 +918,8 @@ def load_mfx_json(self,file_path): # 3D not implemented yet
     else:
         for i in range(len(raw_data)):
             if raw_data['vld'][i]:
-                locsx.append((raw_data[i]['itr'][-1]['loc'][0] - minx) * 1E9)
-                locsy.append((raw_data[i]['itr'][-1]['loc'][1] - miny) * 1E9)
+                locsx.append((raw_data[i]['itr'][-1]['loc'][0]) * 1E9)
+                locsy.append((raw_data[i]['itr'][-1]['loc'][1]) * 1E9)
         frames = np.ones(len(locsx))
         photons = 1000 * np.ones(len(locsx))
         pixelsize = 1
@@ -744,9 +950,9 @@ def load_mfx_npy(self,file_path):
         locsz=[]
         for i in range(len(raw_data)):
             if raw_data['vld'][i]:
-                locsx.append((raw_data['itr']['loc'][i, -1, 0] - minx) * 1E9)
-                locsy.append((raw_data['itr']['loc'][i, -1, 1] - miny) * 1E9)
-                locsz.append((raw_data['itr']['loc'][i, -1, 2] - minz) * 1E9)
+                locsx.append((raw_data['itr']['loc'][i, -1, 0]) * 1E9)
+                locsy.append((raw_data['itr']['loc'][i, -1, 1]) * 1E9)
+                locsz.append((raw_data['itr']['loc'][i, -1, 2]) * 1E9)
         frames = np.ones(len(locsx))
         photons = 1000 * np.ones(len(locsx))
         pixelsize = 1
